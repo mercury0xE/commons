@@ -104,7 +104,7 @@ export function sendChunked(data: ArrayBufferLike, ws: SendCapableSocket): void 
     warnedAboutLargeMessage = true;
   }
 
-  const id = (Date.now() + Math.random()).toString(36).substring(10);
+  const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   const chunks = Math.ceil(data.byteLength / CHUNK_MAX_SIZE);
 
   ws.send(serializeBatchMarker({ id, type: "start", size: data.byteLength, count: chunks }));
