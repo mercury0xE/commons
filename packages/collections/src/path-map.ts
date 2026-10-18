@@ -115,16 +115,18 @@ export class PathMap<K extends PathMapKey, V> implements Map<K, V> {
   set(key: K, value: V): this {
     const node = this.getCanonicalNode(key);
 
-    if (node.value === undefined) {
+    if (node.keyId === undefined) {
       node.keyId = this.nextKeyId++;
       this._size++;
-      let canonicalKey: K;
-      if (key instanceof Set) {
-        canonicalKey = new Set([...key].sort(ordinal.sort)) as K;
-      } else if (Array.isArray(key)) {
-        canonicalKey = Object.freeze([...key]) as K & ReadonlyArray<K[keyof K]>;
-      } else {
-        canonicalKey = key;
+      let canonicalKey = this.resolveCanonicalKey(node.canonicalKey);
+      if (canonicalKey === undefined) {
+        if (key instanceof Set) {
+          canonicalKey = new Set([...key].sort(ordinal.sort)) as K;
+        } else if (Array.isArray(key)) {
+          canonicalKey = Object.freeze([...key]) as K & ReadonlyArray<K[keyof K]>;
+        } else {
+          canonicalKey = key;
+        }
       }
       this.storedEntries.set(node.keyId, { key: canonicalKey, node });
       node.canonicalKey = canonicalKey;
@@ -135,33 +137,31 @@ export class PathMap<K extends PathMapKey, V> implements Map<K, V> {
   }
 
   getOrInsert(key: K, defaultValue: V): V {
-    const existing = this.get(key);
-    if (existing !== undefined) return existing;
+    const node = this.maybeGetCanonicalNode(key);
+    if (node?.keyId !== undefined) return node.value!;
     this.set(key, defaultValue);
     return defaultValue;
   }
 
   getOrInsertComputed(key: K, callbackfn: (key: K) => V): V {
-    const existing = this.get(key);
-    if (existing !== undefined) return existing;
+    const node = this.maybeGetCanonicalNode(key);
+    if (node?.keyId !== undefined) return node.value!;
     const value = callbackfn(key);
     this.set(key, value);
     return value;
   }
 
   has(key: K): boolean {
-    return this.maybeGetCanonicalNode(key)?.value !== undefined;
+    return this.maybeGetCanonicalNode(key)?.keyId !== undefined;
   }
 
   delete(key: K): boolean {
     const node = this.maybeGetCanonicalNode(key);
-    if (node?.value === undefined) {
+    if (node?.keyId === undefined) {
       return false;
     }
 
-    if (node.keyId !== undefined) {
-      this.storedEntries.delete(node.keyId);
-    }
+    this.storedEntries.delete(node.keyId);
 
     node.value = undefined;
     node.keyId = undefined;
