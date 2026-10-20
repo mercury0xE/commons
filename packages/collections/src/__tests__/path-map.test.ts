@@ -42,6 +42,20 @@ describe("PathMap", () => {
         "[object PathMap]",
       ]);
     });
+
+    it("should handle undefined values without corrupting size or storedEntries", () => {
+      const map = new PathMap<string, number | undefined>();
+      map.set("a", undefined);
+      expect(map.has("a")).to.equal(true);
+      expect(map.size).to.equal(1);
+      map.set("a", 42);
+      expect(map.size).to.equal(1);
+      expect([...map.entries()]).to.deep.equal([["a", 42]]);
+      map.set("a", undefined);
+      expect(map.delete("a")).to.equal(true);
+      expect(map.has("a")).to.equal(false);
+      expect(map.size).to.equal(0);
+    });
   });
 
   describe("trie root selection", () => {
@@ -162,9 +176,34 @@ describe("PathMap", () => {
       expect(canonical).to.be.instanceOf(Set);
       expect([...canonical]).to.have.ordered.members(["x", "y"]);
     });
+
+    it("should preserve canonical key identity when set follows getCanonicalKey", () => {
+      const map = new PathMap<Set<string>, number>();
+
+      const canonicalBefore = map.getCanonicalKey(new Set(["a", "b"]));
+      map.set(new Set(["b", "a"]), 1);
+      const canonicalAfter = map.getCanonicalKey(new Set(["a", "b"]));
+
+      expect(canonicalAfter).to.equal(canonicalBefore);
+      expect([...map.keys()][0]).to.equal(canonicalBefore);
+    });
   });
 
   describe("delete and WeakRef behavior", () => {
+    it("should reuse live WeakRef canonical key when re-inserting after delete", () => {
+      const map = new PathMap<Set<string>, number>();
+
+      map.set(new Set(["a", "b"]), 1);
+      const canonical1 = map.getCanonicalKey(new Set(["a", "b"]));
+
+      map.delete(new Set(["b", "a"]));
+      map.set(new Set(["b", "a"]), 2);
+
+      const canonical2 = map.getCanonicalKey(new Set(["a", "b"]));
+      expect(canonical2).to.equal(canonical1);
+      expect([...map.keys()][0]).to.equal(canonical1);
+    });
+
     it("should remove from iteration after delete", () => {
       const map = new PathMap<string, number>();
 
